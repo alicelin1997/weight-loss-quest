@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>體態冒險 RPG：全任務整合版</title>
+    <style>
+        :root { --p: #6c5ce7; --s: #27ae60; --d: #e74c3c; --w: #3498db; --b: #fdcb6e; --sta: #00cec9; }
+        body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 10px; line-height: 1.4; }
+        .game-container { background: white; width: 100%; max-width: 450px; border-radius: 20px; padding: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .status-bar { margin-bottom: 8px; }
+        .label { font-size: 11px; font-weight: bold; display: flex; justify-content: space-between; }
+        .bar-bg { background: #eee; border-radius: 10px; height: 12px; overflow: hidden; margin-top: 2px; }
+        .bar-fill { height: 100%; transition: width 0.4s; }
+        .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+        .stat-box { background: #f8f9fa; padding: 8px; border-radius: 10px; text-align: center; border: 1px solid #eee; }
+        .section-title { font-size: 13px; font-weight: bold; margin: 12px 0 6px; border-left: 4px solid var(--p); padding-left: 8px; color: #2d3436; }
+        button { padding: 10px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; width: 100%; margin-bottom: 5px; transition: 0.2s; text-align: left; }
+        button:disabled { opacity: 0.3; filter: grayscale(1); }
+        .btn-med { background: var(--p); color: white; }
+        .btn-daily { background: #edf2ff; color: #364fc7; }
+        .btn-adv { background: #ebfbee; color: #087f5b; }
+        .btn-hide { background: #fff4e6; color: #d9480f; }
+        .btn-neg { background: #fff5f5; color: #c92a2a; border: 1px solid #ffa8a8; }
+        .badge { font-size: 10px; padding: 2px 6px; border-radius: 5px; background: var(--b); color: #854d0e; display: none; margin-left: 5px; }
+    </style>
+</head>
+<body>
+<div class="game-container">
+    <h2 style="text-align:center; margin:0 0 10px;">🏆 體態冒險 RPG <span id="badge-med" class="badge">💊 藥效中(1.2x)</span></h2>
+    
+    <!-- 數值區 -->
+    <div class="status-bar">
+        <div class="label"><span>精神力 HP (由睡眠決定)</span><span id="hp-txt">100/100</span></div>
+        <div class="bar-bg"><div id="hp-fill" class="bar-fill" style="background:var(--d); width:100%"></div></div>
+    </div>
+    <div class="status-bar">
+        <div class="label"><span>體力 Stamina (領大獎門檻)</span><span id="sta-txt">0/100</span></div>
+        <div class="bar-bg"><div id="sta-fill" class="bar-fill" style="background:var(--sta); width:0%"></div></div>
+    </div>
+    <div class="status-bar">
+        <div class="label"><span>體重 EXP (100=0.1kg)</span><span id="exp-txt">0/12000</span></div>
+        <div class="bar-bg"><div id="exp-fill" class="bar-fill" style="background:var(--s); width:0%"></div></div>
+    </div>
+
+    <div class="stats">
+        <div class="stat-box">體重: <b id="weight">67.0</b> kg</div>
+        <div class="stat-box">基金: $<b id="money">0</b></div>
+    </div>
+
+    <p id="low-hp-warn" style="color:red; font-size:11px; text-align:center; display:none; font-weight:bold;">⚠️ 精神萎靡！今日收益減半</p>
+
+    <!-- 1. 核心 Buff -->
+    <div class="section-title">💊 鍊金術 (今日開關)</div>
+    <button class="btn-med" id="t-potion" onclick="doAction('potion',20,0)">飲用代謝藥水 (啟動 4hr 加成)</button>
+
+    <!-- 2. 日常修煉 -->
+    <div class="section-title">✨ 日常修煉 (秘訣 1, 4)</div>
+    <button class="btn-daily" id="t-sleep" onclick="doAction('sleep',30,0)">🌙【月光淨化】22:00前睡 & 滿7h</button>
+    <button class="btn-daily" id="t-water" onclick="doAction('water',10,20)">💧【水之治癒】飲水滿 2000cc</button>
+    <button class="btn-daily" id="t-veg" onclick="doAction('veg',20,30)">🥦【蔬果祝福】攝取三份蔬菜</button>
+
+    <!-- 3. 進階挑戰 -->
+    <div class="section-title">⚔️ 進階挑戰 (秘訣 3, 4)</div>
+    <button class="btn-adv" id="t-sugar" onclick="doAction('sugar',50,50)">🍭【戒糖領域】全天糖分 < 25g</button>
+    <button class="btn-adv" id="t-fire" onclick="doAction('fire',50,100)">🔥【烈焰焚身】運動 30 分鐘</button>
+    <button class="btn-adv" id="t-step" onclick="doAction('step',30,80)">🏃【行者足跡】步數滿 8000 步</button>
+
+    <!-- 4. 隱藏例行公事 (微運動與覺察) -->
+    <div class="section-title">🔍 隱藏修煉 (秘訣 2, 5, 6, 7)</div>
+    <button class="btn-hide" id="t-eye" onclick="doAction('eye',10,20)">⚖️【真實之眼】晨起秤重紀錄</button>
+    <button class="btn-hide" id="t-photo" onclick="doAction('photo',10,20)">📸【光影之祭】拍下三餐食物</button>
+    <button class="btn-hide" id="t-chew" onclick="doAction('chew',20,30)">🦷【咀嚼儀式】每口咀嚼 20 下</button>
+    <button class="btn-hide" id="t-lift" onclick="doAction('lift',10,20)">🦵【微運動】躺著抬腿 3 分鐘 (+30體力)</button>
+
+    <!-- 5. 負面狀態與終極獎勵 -->
+    <div class="section-title">🏆 結算</div>
+    <button class="btn-neg" onclick="doAction('bad',-50,0)">👿 破戒：偷吃零食/熬夜/忘記吃藥</button>
+    <button id="t-pure" style="background:var(--b); color:#854d0e;" onclick="doAction('pure',100,200)" disabled>⭐ 領取【純淨之日】獎勵 (需體力100)</button>
+
+    <button onclick="resetGame()" style="background:none; color:#ccc; font-size:10px; margin-top:20px; text-align:center;">重置所有數據</button>
+</div>
+
+<script>
+    let s = { hp: 100, sta: 0, exp: 0, money: 0, buff: false, lastD: "", done: [], snack: false };
+
+    function load() {
+        const data = localStorage.getItem('diet_master_rpg');
+        if (data) s = JSON.parse(data);
+        const today = new Date().toLocaleDateString();
+        if (s.lastD !== today) {
+            s.lastD = today; s.done = []; s.buff = false; s.sta = 0; s.snack = false;
+            if (s.hp > 0) s.hp -= 20; // 每天自然消耗一點精神，需靠睡眠補回
+        }
+        update();
+    }
+
+    function update() {
+        document.getElementById('hp-fill').style.width = s.hp + '%';
+        document.getElementById('hp-txt').innerText = `${s.hp}/100`;
+        document.getElementById('sta-fill').style.width = Math.min(100, s.sta) + '%';
+        document.getElementById('sta-txt').innerText = `${s.sta}/100`;
+        document.getElementById('exp-fill').style.width = (s.exp / 12000 * 100) + '%';
+        document.getElementById('exp-txt').innerText = `${s.exp}/12000`;
+        document.getElementById('money').innerText = Math.floor(s.money);
+        document.getElementById('weight').innerText = (67.0 - (s.exp / 1000)).toFixed(1);
+        
+        document.getElementById('badge-med').style.display = s.buff ? 'inline' : 'none';
+        document.getElementById('low-hp-warn').style.display = s.hp < 30 ? 'block' : 'none';
+
+        // 按鈕鎖定
+        const ts = ['potion','sleep','water','veg','sugar','fire','step','eye','photo','chew','lift','pure'];
+        ts.forEach(t => { document.getElementById('t-'+t).disabled = s.done.includes(t); });
+        
+        // 純淨之日解鎖條件
+        document.getElementById('t-pure').disabled = (s.sta < 100 || s.snack || s.done.includes('pure'));
+
+        localStorage.setItem('diet_master_rpg', JSON.stringify(s));
+    }
+
+    function doAction(t, m, e) {
+        let mult = (s.hp < 30 ? 0.5 : 1) * (s.buff ? 1.2 : 1);
+
+        if (t === 'potion') { s.buff = true; }
+        else if (t === 'sleep') { s.hp = 100; }
+        else if (t === 'lift') { s.sta += 34; } // 三次滿
+        else if (t === 'bad') { 
+            s.money = Math.max(0, s.money - 50); 
+            s.hp = Math.max(0, s.hp - 30); 
+            s.snack = true;
+            alert("👿 遭受詛咒！基金與精神受損，今日無法領取純淨獎勵。");
+        }
+
+        if (t !== 'bad') {
+            s.money += (m > 0 ? m * (s.hp < 30 ? 0.5 : 1) : 0);
+            s.exp += (e * mult);
+            if (t !== 'pure' && t !== 'lift') s.done.push(t);
+            if (t === 'pure') s.done.push('pure');
+            alert("✨ 任務達成！");
+        }
+        update();
+    }
+
+    function resetGame() { if(confirm("確定要刪除所有進度重新開始嗎？")) { localStorage.clear(); location.reload(); } }
+    load();
+</script>
+</body>
+</html>
